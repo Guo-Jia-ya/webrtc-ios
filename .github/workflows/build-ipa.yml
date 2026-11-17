@@ -7,8 +7,9 @@ on:
 
 jobs:
   build:
-    # macOS 14 自带 Xcode 15，与工程匹配。若该 runner 下线，改成 macos-latest
-    runs-on: macos-14
+    # macos-14 已于 2026-11-02 退役，改用当前稳定的 macos-15 (Apple Silicon)
+    # 若将来 macos-15 也退役，改成 macos-latest 即可
+    runs-on: macos-15
     timeout-minutes: 40
 
     steps:
