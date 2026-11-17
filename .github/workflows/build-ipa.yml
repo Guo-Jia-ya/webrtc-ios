@@ -7,9 +7,9 @@ on:
 
 jobs:
   build:
-    # macos-14 已于 2026-11-02 退役，改用当前稳定的 macos-15 (Apple Silicon)
-    # 若将来 macos-15 也退役，改成 macos-latest 即可
-    runs-on: macos-15
+    # macos-14 已于 2026-11-02 退役；macos-15 (arm64) 免费排队拥堵，
+    # 改用 Intel 镜像 macos-15-intel，容量更宽松。若也退役改 macos-latest
+    runs-on: macos-15-intel
     timeout-minutes: 40
 
     steps:
