@@ -1,0 +1,31 @@
+name: WebRTCiOS
+options:
+  bundleIdPrefix: com.srtp
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+packages:
+  WebRTC:
+    url: https://github.com/stasel/WebRTC.git
+    branch: main
+
+targets:
+  WebRTCiOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: WebRTCiOS
+    dependencies:
+      - package: WebRTC
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.srtp.webrtcios
+        PRODUCT_NAME: WebRTCiOS
+        INFOPLIST_FILE: WebRTCiOS/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.0"
+        OTHER_LDFLAGS: -ObjC

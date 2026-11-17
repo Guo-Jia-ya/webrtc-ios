@@ -1,0 +1,73 @@
+name: 编译 WebRTCiOS 未签名 IPA
+
+# 触发方式：在 GitHub 网页 Actions 页面点 "Run workflow"，或下面这条命令
+# gh workflow run build-ipa.yml
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    # macOS 14 自带 Xcode 15，与工程匹配。若该 runner 下线，改成 macos-latest
+    runs-on: macos-14
+    timeout-minutes: 40
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 确认 Xcode 版本
+        run: |
+          xcodebuild -version
+          xcode-select -p
+
+      - name: 安装 xcodegen
+        # 手写工程没有共享 scheme，命令行 archive 需要它重新生成一份等价工程
+        run: brew install xcodegen
+
+      - name: 用 project.yml 重新生成工程（含共享 scheme）
+        run: xcodegen generate
+
+      - name: 拉取 WebRTC Swift 包
+        # stasel/WebRTC 走 main 分支，约 100MB+。若这一步失败，见下方说明改固定 tag
+        run: xcodebuild -resolvePackageDependencies -project WebRTCiOS.xcodeproj -scheme WebRTCiOS
+
+      - name: 编译并归档（不签名）
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project WebRTCiOS.xcodeproj \
+            -scheme WebRTCiOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/WebRTCiOS.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE="" \
+            SWIFT_STRICT_CONCURRENCY=minimal \
+            -skipPackagePluginValidation \
+            2>&1 | tee build.log
+
+      - name: 打包成未签名 IPA
+        run: |
+          set -e
+          APP="$RUNNER_TEMP/WebRTCiOS.xcarchive/Products/Applications/WebRTCiOS.app"
+          if [ ! -d "$APP" ]; then
+            echo "找不到编译产物：$APP"
+            exit 1
+          fi
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry WebRTCiOS-unsigned.ipa Payload
+          ls -lh WebRTCiOS-unsigned.ipa
+
+      - name: 上传 IPA 与构建日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebRTCiOS-unsigned
+          path: |
+            WebRTCiOS-unsigned.ipa
+            build.log
+          if-no-files-found: warn
+          retention-days: 30

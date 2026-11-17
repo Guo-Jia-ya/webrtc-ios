@@ -1,0 +1,451 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA000000000000000000B001 /* WebRTCiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F001 /* WebRTCiOSApp.swift */; };
+		AA000000000000000000B002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F002 /* RootView.swift */; };
+		AA000000000000000000B003 /* Endpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F003 /* Endpoint.swift */; };
+		AA000000000000000000B004 /* LanInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F004 /* LanInfo.swift */; };
+		AA000000000000000000B005 /* TrustSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F005 /* TrustSession.swift */; };
+		AA000000000000000000B006 /* SocketIOClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F006 /* SocketIOClient.swift */; };
+		AA000000000000000000B007 /* MainServerAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F007 /* MainServerAPI.swift */; };
+		AA000000000000000000B008 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F008 /* Models.swift */; };
+		AA000000000000000000B009 /* MeshCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F009 /* MeshCall.swift */; };
+		AA000000000000000000B00A /* MainServerSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F00A /* MainServerSession.swift */; };
+		AA000000000000000000B00B /* TempServerSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F00B /* TempServerSession.swift */; };
+		AA000000000000000000B00C /* WebRTCEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F00C /* WebRTCEngine.swift */; };
+		AA000000000000000000B00D /* WebSocketFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F00D /* WebSocketFrame.swift */; };
+		AA000000000000000000B00E /* LocalTempServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F00E /* LocalTempServer.swift */; };
+		AA000000000000000000B00F /* HostedPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F00F /* HostedPage.swift */; };
+		AA000000000000000000B010 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F010 /* Components.swift */; };
+		AA000000000000000000B011 /* MainServerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F011 /* MainServerView.swift */; };
+		AA000000000000000000B012 /* TempJoinView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F012 /* TempJoinView.swift */; };
+		AA000000000000000000B013 /* HostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F013 /* HostView.swift */; };
+		AA000000000000000000B014 /* CallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F014 /* CallView.swift */; };
+		AA000000000000000000B015 /* temp-identity.p12 in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000F015 /* temp-identity.p12 */; };
+		AA000000000000000000B016 /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = AA000000000000000000D002 /* WebRTC */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AA000000000000000000F001 /* WebRTCiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebRTCiOSApp.swift; sourceTree = "<group>"; };
+		AA000000000000000000F002 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		AA000000000000000000F003 /* Endpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoint.swift; sourceTree = "<group>"; };
+		AA000000000000000000F004 /* LanInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanInfo.swift; sourceTree = "<group>"; };
+		AA000000000000000000F005 /* TrustSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrustSession.swift; sourceTree = "<group>"; };
+		AA000000000000000000F006 /* SocketIOClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocketIOClient.swift; sourceTree = "<group>"; };
+		AA000000000000000000F007 /* MainServerAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainServerAPI.swift; sourceTree = "<group>"; };
+		AA000000000000000000F008 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		AA000000000000000000F009 /* MeshCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshCall.swift; sourceTree = "<group>"; };
+		AA000000000000000000F00A /* MainServerSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainServerSession.swift; sourceTree = "<group>"; };
+		AA000000000000000000F00B /* TempServerSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempServerSession.swift; sourceTree = "<group>"; };
+		AA000000000000000000F00C /* WebRTCEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebRTCEngine.swift; sourceTree = "<group>"; };
+		AA000000000000000000F00D /* WebSocketFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketFrame.swift; sourceTree = "<group>"; };
+		AA000000000000000000F00E /* LocalTempServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTempServer.swift; sourceTree = "<group>"; };
+		AA000000000000000000F00F /* HostedPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostedPage.swift; sourceTree = "<group>"; };
+		AA000000000000000000F010 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		AA000000000000000000F011 /* MainServerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainServerView.swift; sourceTree = "<group>"; };
+		AA000000000000000000F012 /* TempJoinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempJoinView.swift; sourceTree = "<group>"; };
+		AA000000000000000000F013 /* HostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostView.swift; sourceTree = "<group>"; };
+		AA000000000000000000F014 /* CallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallView.swift; sourceTree = "<group>"; };
+		AA000000000000000000F015 /* temp-identity.p12 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "temp-identity.p12"; sourceTree = "<group>"; };
+		AA000000000000000000F016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA000000000000000000F017 /* WebRTCiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WebRTCiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AA000000000000000000DE02 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000000000000000000B016 /* WebRTC in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AA000000000000000000A001 = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000A002 /* WebRTCiOS */,
+				AA000000000000000000A00C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AA000000000000000000A002 /* WebRTCiOS */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000A003 /* App */,
+				AA000000000000000000A004 /* Core */,
+				AA000000000000000000A005 /* Net */,
+				AA000000000000000000A006 /* Model */,
+				AA000000000000000000A007 /* Session */,
+				AA000000000000000000A008 /* RTC */,
+				AA000000000000000000A009 /* Host */,
+				AA000000000000000000A00A /* UI */,
+				AA000000000000000000A00B /* Resources */,
+				AA000000000000000000F016 /* Info.plist */,
+			);
+			path = WebRTCiOS;
+			sourceTree = "<group>";
+		};
+		AA000000000000000000A003 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000F001 /* WebRTCiOSApp.swift */,
+				AA000000000000000000F002 /* RootView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		AA000000000000000000A004 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000F003 /* Endpoint.swift */,
+				AA000000000000000000F004 /* LanInfo.swift */,
+				AA000000000000000000F005 /* TrustSession.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		AA000000000000000000A005 /* Net */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000F006 /* SocketIOClient.swift */,
+				AA000000000000000000F007 /* MainServerAPI.swift */,
+			);
+			path = Net;
+			sourceTree = "<group>";
+		};
+		AA000000000000000000A006 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000F008 /* Models.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		AA000000000000000000A007 /* Session */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000F009 /* MeshCall.swift */,
+				AA000000000000000000F00A /* MainServerSession.swift */,
+				AA000000000000000000F00B /* TempServerSession.swift */,
+			);
+			path = Session;
+			sourceTree = "<group>";
+		};
+		AA000000000000000000A008 /* RTC */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000F00C /* WebRTCEngine.swift */,
+			);
+			path = RTC;
+			sourceTree = "<group>";
+		};
+		AA000000000000000000A009 /* Host */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000F00D /* WebSocketFrame.swift */,
+				AA000000000000000000F00E /* LocalTempServer.swift */,
+				AA000000000000000000F00F /* HostedPage.swift */,
+			);
+			path = Host;
+			sourceTree = "<group>";
+		};
+		AA000000000000000000A00A /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000F010 /* Components.swift */,
+				AA000000000000000000F011 /* MainServerView.swift */,
+				AA000000000000000000F012 /* TempJoinView.swift */,
+				AA000000000000000000F013 /* HostView.swift */,
+				AA000000000000000000F014 /* CallView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		AA000000000000000000A00B /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000F015 /* temp-identity.p12 */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		AA000000000000000000A00C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000F017 /* WebRTCiOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA000000000000000000E001 /* WebRTCiOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000000000000000000C00B /* Build configuration list for PBXNativeTarget "WebRTCiOS" */;
+			buildPhases = (
+				AA000000000000000000DE01 /* Sources */,
+				AA000000000000000000DE02 /* Frameworks */,
+				AA000000000000000000DE03 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WebRTCiOS;
+			packageProductDependencies = (
+				AA000000000000000000D002 /* WebRTC */,
+			);
+			productName = WebRTCiOS;
+			productReference = AA000000000000000000F017 /* WebRTCiOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AA000000000000000000E002 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					AA000000000000000000E001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = AA000000000000000000C00A /* Build configuration list for PBXProject "WebRTCiOS" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+			);
+			mainGroup = AA000000000000000000A001;
+			packageReferences = (
+				AA000000000000000000D001 /* XCRemoteSwiftPackageReference "WebRTC" */,
+			);
+			productRefGroup = AA000000000000000000A00C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA000000000000000000E001 /* WebRTCiOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AA000000000000000000DE03 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000000000000000000B015 /* temp-identity.p12 in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AA000000000000000000DE01 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000000000000000000B001 /* WebRTCiOSApp.swift in Sources */,
+				AA000000000000000000B002 /* RootView.swift in Sources */,
+				AA000000000000000000B003 /* Endpoint.swift in Sources */,
+				AA000000000000000000B004 /* LanInfo.swift in Sources */,
+				AA000000000000000000B005 /* TrustSession.swift in Sources */,
+				AA000000000000000000B006 /* SocketIOClient.swift in Sources */,
+				AA000000000000000000B007 /* MainServerAPI.swift in Sources */,
+				AA000000000000000000B008 /* Models.swift in Sources */,
+				AA000000000000000000B009 /* MeshCall.swift in Sources */,
+				AA000000000000000000B00A /* MainServerSession.swift in Sources */,
+				AA000000000000000000B00B /* TempServerSession.swift in Sources */,
+				AA000000000000000000B00C /* WebRTCEngine.swift in Sources */,
+				AA000000000000000000B00D /* WebSocketFrame.swift in Sources */,
+				AA000000000000000000B00E /* LocalTempServer.swift in Sources */,
+				AA000000000000000000B00F /* HostedPage.swift in Sources */,
+				AA000000000000000000B010 /* Components.swift in Sources */,
+				AA000000000000000000B011 /* MainServerView.swift in Sources */,
+				AA000000000000000000B012 /* TempJoinView.swift in Sources */,
+				AA000000000000000000B013 /* HostView.swift in Sources */,
+				AA000000000000000000B014 /* CallView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AA000000000000000000C001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AA000000000000000000C002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AA000000000000000000C003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WebRTCiOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.srtp.webrtcios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AA000000000000000000C004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WebRTCiOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.srtp.webrtcios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA000000000000000000C00A /* Build configuration list for PBXProject "WebRTCiOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000000000000000000C001 /* Debug */,
+				AA000000000000000000C002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA000000000000000000C00B /* Build configuration list for PBXNativeTarget "WebRTCiOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000000000000000000C003 /* Debug */,
+				AA000000000000000000C004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA000000000000000000D001 /* XCRemoteSwiftPackageReference "WebRTC" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stasel/WebRTC.git";
+			requirement = {
+				kind = branch;
+				branch = main;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA000000000000000000D002 /* WebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000000000000000000D001 /* XCRemoteSwiftPackageReference "WebRTC" */;
+			productName = WebRTC;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AA000000000000000000E002 /* Project object */;
+}
