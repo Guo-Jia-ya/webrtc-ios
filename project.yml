@@ -9,7 +9,8 @@ options:
 packages:
   WebRTC:
     url: https://github.com/stasel/WebRTC.git
-    branch: main
+    # 该仓库主分支已从 main 改名为 latest（默认分支）
+    branch: latest
 
 targets:
   WebRTCiOS:

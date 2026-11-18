@@ -434,7 +434,7 @@
 			repositoryURL = "https://github.com/stasel/WebRTC.git";
 			requirement = {
 				kind = branch;
-				branch = main;
+				branch = latest;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
