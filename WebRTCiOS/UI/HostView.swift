@@ -194,8 +194,10 @@ struct HostView: View {
         if nick.isEmpty { nickname = display }
 
         let call = HostRoomCall(port: server.port, name: display)
-        call.onEnded = { [weak self] reason in
-            guard let self else { return }
+        // 注意：HostView 是 struct（值类型），这里不能用 [weak self] / guard let self，
+        // 否则会报「'weak' may only be applied to class and class-bound protocol types」。
+        // 捕获的是这个 View 的一份副本，而 @State 的存储是引用语义，赋值依然生效。
+        call.onEnded = { reason in
             self.errorText = reason
             self.hostCall = nil
         }
