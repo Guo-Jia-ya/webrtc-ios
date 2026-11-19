@@ -181,9 +181,14 @@ struct MainServerView: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(session.others) { user in
-                    UserRow(user: user, isMe: false) {
-                        session.callUser(user)
-                    }
+                    UserRow(user: user,
+                            isMe: false,
+                            onCall: { session.callUser(user) },
+                            onMessage: {
+                                // 直接从名单里拉一个私聊：和安卓端点气泡是一样的入口
+                                session.chat?.open("p:" + user.sid, title: user.name)
+                                showChat = true
+                            })
                 }
             } header: {
                 Text("在线（\(session.others.count) 人）")

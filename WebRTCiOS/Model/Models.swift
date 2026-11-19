@@ -77,6 +77,14 @@ struct LobbyUser: Identifiable, Hashable {
     }
 }
 
+/// 能私聊的对象（聊天面板「发起私聊」用）。
+/// 私聊在服务端是按 socket id 转发的，所以这里只留 sid 和昵称。
+struct ChatPeer: Identifiable, Hashable {
+    let sid: String
+    let name: String
+    var id: String { sid }
+}
+
 struct IncomingCall {
     let callId: String
     let fromSid: String

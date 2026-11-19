@@ -87,8 +87,21 @@ struct ChatMessage: Identifiable, Equatable {
 @MainActor
 final class ChatService: ObservableObject {
 
-    @Published private(set) var messages: [ChatMessage] = []
-    @Published private(set) var unread = 0
+    /// 公共频道的会话键。私聊用 "p:<对方 sid>"，与安卓 / 网页端保持一致。
+    static let LOBBY = "lobby"
+
+    /// 会话 -> 消息（每个会话最多 100 条，只存在内存里，重连即清空）
+    @Published private(set) var store: [String: [ChatMessage]] = [:]
+    /// 会话 -> 未读数
+    @Published private(set) var unreadMap: [String: Int] = [:]
+    /// 会话 -> 显示名（私聊用对方的昵称）
+    @Published private(set) var titles: [String: String] = [:]
+    /// 会话出现顺序（公共频道永远排第一）
+    @Published private(set) var order: [String] = []
+    /// 大厅里在线的人：用来"发起私聊"，也用来给还叫不出名字的会话补昵称
+    @Published private(set) var peers: [ChatPeer] = []
+    /// 当前正在看的会话
+    @Published var current: String = ChatService.LOBBY
     @Published private(set) var sending = false
     /// 出错时的提示（界面上弹一条灰条，不打断输入）
     @Published var errorText: String?
@@ -103,6 +116,9 @@ final class ChatService: ObservableObject {
 
     var mySid: String? { socket.socketId }
     var myName: String { nameProvider() }
+
+    /// 大厅角标：所有会话的未读之和
+    var unread: Int { unreadMap.values.reduce(0, +) }
 
     init(socket: SocketIOClient,
          baseURL: URL,
@@ -126,36 +142,118 @@ final class ChatService: ObservableObject {
         }
     }
 
-    private func ingest(_ payload: Any?) {
-        guard let msg = ChatMessage(json: payload) else { return }
-        // 服务端理论上不回重，但重连补发时可能出现同一 id，挡一下
-        guard !messages.contains(where: { $0.id == msg.id }) else { return }
-        messages.append(msg)
-        if messages.count > 300 { messages.removeFirst(messages.count - 300) }
-        if !visible && msg.fromSid != (mySid ?? "") { unread += 1 }
+    // MARK: 会话
+
+    func messages(in conv: String) -> [ChatMessage] {
+        store[conv] ?? []
+    }
+
+    func unread(of conv: String) -> Int {
+        unreadMap[conv] ?? 0
+    }
+
+    func title(for conv: String) -> String {
+        if conv == ChatService.LOBBY { return "公共频道" }
+        if let t = titles[conv], !t.isEmpty { return t }
+        if conv.hasPrefix("p:") {
+            let sid = String(conv.dropFirst(2))
+            if let p = peers.first(where: { $0.sid == sid }) { return p.name }
+            return "私聊 " + String(sid.prefix(4))
+        }
+        return "会话"
+    }
+
+    /// 打开一个会话：清未读、记名字，没有消息也先占一个位置
+    func open(_ conv: String, title name: String? = nil) {
+        current = conv
+        if let name, !name.isEmpty { titles[conv] = name }
+        if !order.contains(conv) { order.append(conv) }
+        unreadMap[conv] = 0
+        visible = true
+    }
+
+    /// 公共频道 + 已经开过的私聊（按出现顺序）
+    func conversations() -> [String] {
+        var out: [String] = [ChatService.LOBBY]
+        for c in order where c != ChatService.LOBBY {
+            if !out.contains(c) { out.append(c) }
+        }
+        return out
+    }
+
+    /// 大厅名单变了就同步过来：私聊列表的"在线的人"和会话昵称都靠它
+    func setPeers(_ list: [ChatPeer]) {
+        peers = list
+        for p in list {
+            let key = "p:" + p.sid
+            if titles[key] == nil { titles[key] = p.name }
+        }
     }
 
     func markRead() {
-        unread = 0
         visible = true
+        unreadMap[current] = 0
+    }
+
+    private func ingest(_ payload: Any?) {
+        guard let msg = ChatMessage(json: payload) else { return }
+        // 服务端理论上不回重，但重连补发时可能出现同一 id，挡一下
+        guard !store.values.contains(where: { list in list.contains(where: { $0.id == msg.id }) })
+        else { return }
+
+        let mine = msg.fromSid == (mySid ?? "")
+        let conv: String
+        if msg.to.isEmpty || msg.to == "lobby" {
+            conv = ChatService.LOBBY
+        } else {
+            // 自己发的：to 是对方；收到的：from 是对方
+            conv = "p:" + (mine ? msg.to : msg.fromSid)
+        }
+
+        var list = store[conv] ?? []
+        list.append(msg)
+        if list.count > 100 { list.removeFirst(list.count - 100) }
+        store[conv] = list
+        if !order.contains(conv) { order.append(conv) }
+
+        if conv != ChatService.LOBBY {
+            if !mine {
+                titles[conv] = msg.fromName
+            } else if titles[conv] == nil || titles[conv] == "私聊" {
+                titles[conv] = peers.first(where: { $0.sid == msg.to })?.name
+                    ?? titles[conv] ?? "私聊"
+            }
+        }
+
+        if !mine && !(visible && current == conv) {
+            unreadMap[conv, default: 0] += 1
+        }
     }
 
     // MARK: 发送
 
+    /// 当前会话对应的收件人：公共频道是 "lobby"，私聊是对方 sid
+    private var sendTo: String {
+        current == ChatService.LOBBY ? "lobby" : String(current.dropFirst(2))
+    }
+
     func sendText(_ text: String) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
-        socket.emit("chat-send", ["to": "lobby", "kind": "text", "text": t])
+        guard validTarget() else { return }
+        socket.emit("chat-send", ["to": sendTo, "kind": "text", "text": t])
     }
 
     /// 录音结束后调用：先上传，再广播一条 voice 消息
     func sendVoice(localURL: URL, duration: Double) async {
+        guard validTarget() else { return }
+        let to = sendTo
         sending = true
         defer { sending = false }
         do {
             let file = try await upload(fileURL: localURL, mime: "audio/m4a")
             socket.emit("chat-send", [
-                "to": "lobby",
+                "to": to,
                 "kind": "voice",
                 "file": file.dict,
                 "duration": duration
@@ -166,16 +264,28 @@ final class ChatService: ObservableObject {
     }
 
     func sendFile(localURL: URL) async {
+        guard validTarget() else { return }
+        let to = sendTo
         sending = true
         defer { sending = false }
         let name = localURL.lastPathComponent
         let mime = ChatService.mimeType(of: localURL)
         do {
             let file = try await upload(fileURL: localURL, mime: mime)
-            socket.emit("chat-send", ["to": "lobby", "kind": "file", "file": file.dict])
+            socket.emit("chat-send", ["to": to, "kind": "file", "file": file.dict])
         } catch {
             errorText = "「\(name)」发送失败：\(error.localizedDescription)"
         }
+    }
+
+    /// 私聊对象可能已经下线（sid 变了也算下线）：先在名单里核对一遍，
+    /// 免得消息发出去只换来一句"对方已离线"。
+    private func validTarget() -> Bool {
+        guard current != ChatService.LOBBY else { return true }
+        let sid = String(current.dropFirst(2))
+        if peers.contains(where: { $0.sid == sid }) { return true }
+        errorText = "\(title(for: current)) 已经不在大厅了，这条消息没有发出"
+        return false
     }
 
     // MARK: 上传 / 下载

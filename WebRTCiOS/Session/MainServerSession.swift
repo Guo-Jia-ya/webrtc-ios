@@ -112,6 +112,11 @@ final class MainServerSession: ObservableObject {
             guard let self, let arr = payload as? [Any] else { return }
             let list = arr.compactMap { LobbyUser(json: $0) }
             self.lobby = LobbyUser.dedupe(list, prefer: s.socketId)
+            // 聊天面板的"发起私聊"要用这份名单；顺带给已有会话补昵称
+            let mine = s.socketId
+            self.chat?.setPeers(self.lobby
+                .filter { $0.sid != mine && $0.online }
+                .map { ChatPeer(sid: $0.sid, name: $0.name) })
             self.selfHealCall(list)
         }
 

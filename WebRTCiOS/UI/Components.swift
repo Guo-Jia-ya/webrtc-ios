@@ -135,6 +135,8 @@ struct UserRow: View {
     let user: LobbyUser
     var isMe: Bool
     let onCall: () -> Void
+    /// 点气泡进私聊。传 nil 就不显示这个按钮（例如主机自己那一行）。
+    var onMessage: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -161,6 +163,20 @@ struct UserRow: View {
             }
 
             Spacer()
+
+            if let onMessage {
+                Button(action: onMessage) {
+                    Image(systemName: "bubble.left.fill")
+                        .font(.footnote)
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 32, height: 32)
+                        .background(Color.accentColor.opacity(0.12), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!user.online)
+                .opacity(user.online ? 1 : 0.4)
+                .accessibilityLabel("和 \(user.name) 私聊")
+            }
 
             Button(action: onCall) {
                 Text(user.inCall ? "加入" : "呼叫")

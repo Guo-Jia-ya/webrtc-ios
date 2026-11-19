@@ -161,9 +161,13 @@ struct TempJoinView: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(session.others) { user in
-                    UserRow(user: user, isMe: false) {
-                        session.callUser(user)
-                    }
+                    UserRow(user: user,
+                            isMe: false,
+                            onCall: { session.callUser(user) },
+                            onMessage: {
+                                session.chat?.open("p:" + user.sid, title: user.name)
+                                showChat = true
+                            })
                 }
             } header: {
                 Text("在线（\(session.others.count) 人）")
