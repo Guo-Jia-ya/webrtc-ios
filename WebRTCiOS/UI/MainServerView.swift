@@ -39,10 +39,10 @@ struct MainServerView: View {
             // 来电 / 加入申请：永远画在最上面，不管当前在大厅还是房间
             prompts
         }
-        .navigationTitle("主服务器")
+        .navigationTitle(inCall ? "通话中" : "主服务器")
         .navigationBarTitleDisplayMode(.inline)
+        // 通话中禁用返回：避免误触把通话页弹掉（人还在房间里，界面却没了）
         .navigationBarBackButtonHidden(inCall)
-        .toolbar(inCall ? .hidden : .visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if let chat = session.chat {

@@ -28,10 +28,9 @@ struct HostView: View {
                     .zIndex(1)
             }
         }
-        .navigationTitle("创建临时服务器")
+        .navigationTitle(hostCall == nil ? "创建临时服务器" : "通话中")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(hostCall != nil)
-        .toolbar(hostCall != nil ? .hidden : .visible, for: .navigationBar)
         .sheet(isPresented: $showPreview) {
             NavigationStack {
                 WebPreview(url: URL(string: "https://127.0.0.1:\(server.port)/") ?? URL(string: "https://127.0.0.1:8080/")!)

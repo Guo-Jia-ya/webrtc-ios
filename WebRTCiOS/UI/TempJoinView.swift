@@ -35,10 +35,10 @@ struct TempJoinView: View {
 
             prompts
         }
-        .navigationTitle("临时服务器")
+        .navigationTitle(inCall ? "通话中" : "临时服务器")
         .navigationBarTitleDisplayMode(.inline)
+        // 通话中禁用返回：避免误触把通话页弹掉（人还在房间里，界面却没了）
         .navigationBarBackButtonHidden(inCall)
-        .toolbar(inCall ? .hidden : .visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if let chat = session.chat {
