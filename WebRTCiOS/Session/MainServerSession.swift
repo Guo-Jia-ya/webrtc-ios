@@ -23,11 +23,18 @@ final class MainServerSession: ObservableObject {
     @Published var joinRequest: JoinRequestInfo?
     @Published var call: MeshCall?
     @Published var busy = false
+    /// 大厅聊天（文字 / 语音 / 文件）。socket 建好之后才有。
+    @Published private(set) var chat: ChatService?
 
     private var socket: SocketIOClient?
     private var videoSocket: SocketIOClient?
     private var endpoint: Endpoint?
     private var userId = ""
+    /// 我刚点了"呼叫"的那个人：万一 call-started 丢了，从名单里自己跟进去
+    private var pendingCallSid: String?
+    /// 呼叫时对方是否空闲。只有这种情况才允许兜底自动进房；
+    /// 对方已在房间里走的是"加入申请"（需房间成员同意），不能自动跳进去。
+    private var pendingCallWasFree = false
 
     /// 大厅里除我以外的人
     var others: [LobbyUser] {
@@ -69,6 +76,12 @@ final class MainServerSession: ObservableObject {
         let s = SocketIOClient(endpoint: ep, tag: "main")
         socket = s
 
+        let nick = myName
+        chat = ChatService(socket: s,
+                           baseURL: ep.baseURL,
+                           uploadPath: "/api/chat/upload",
+                           name: { nick })
+
         s.onConnect = { [weak self] _ in
             guard let self else { return }
             self.banner = nil
@@ -77,8 +90,9 @@ final class MainServerSession: ObservableObject {
             s.emit("lobby-join", ["name": self.myName, "userId": self.userId])
         }
         s.onDisconnect = { [weak self] reason in
-            self?.banner = "与主服务器的连接断开：\(reason)"
-            self?.phase = .idle
+            // 掉线不踢回登录页：socket.io 会自动重连，重连成功后 onConnect 重新登记
+            guard let self else { return }
+            self.banner = "连接断开，正在重连…（\(reason)）"
         }
         s.onError = { [weak self] msg in self?.banner = msg }
 
@@ -91,6 +105,7 @@ final class MainServerSession: ObservableObject {
             guard let self, let arr = payload as? [Any] else { return }
             let list = arr.compactMap { LobbyUser(json: $0) }
             self.lobby = LobbyUser.dedupe(list, prefer: s.socketId)
+            self.selfHealCall(list)
         }
 
         s.on("incoming-call") { [weak self] payload in
@@ -100,23 +115,31 @@ final class MainServerSession: ObservableObject {
         s.on("call-started") { [weak self] payload in
             guard let self, let d = payload as? [String: Any],
                   let roomId = d["roomId"] as? String else { return }
+            self.pendingCallSid = nil
+            self.pendingCallWasFree = false
             self.beginCall(roomId: roomId, baseUrl: (d["baseUrl"] as? String) ?? "")
         }
 
         s.on("join-approved") { [weak self] payload in
             guard let self, let d = payload as? [String: Any],
                   let roomId = d["roomId"] as? String else { return }
+            self.pendingCallSid = nil
+            self.pendingCallWasFree = false
             self.beginCall(roomId: roomId, baseUrl: (d["baseUrl"] as? String) ?? "")
         }
 
         s.on("call-rejected") { [weak self] payload in
             let d = payload as? [String: Any]
+            self?.pendingCallSid = nil
+            self?.pendingCallWasFree = false
             self?.banner = "\((d?["name"] as? String) ?? "对方")拒绝了通话"
             self?.phase = .inLobby
         }
 
         s.on("call-failed") { [weak self] payload in
             let d = payload as? [String: Any]
+            self?.pendingCallSid = nil
+            self?.pendingCallWasFree = false
             self?.banner = (d?["reason"] as? String) ?? "呼叫失败"
             if self?.phase != .inCall { self?.phase = .inLobby }
         }
@@ -158,6 +181,8 @@ final class MainServerSession: ObservableObject {
 
     func callUser(_ user: LobbyUser) {
         guard phase == .inLobby else { return }
+        pendingCallSid = user.sid
+        pendingCallWasFree = !user.inCall
         socket?.emit("call-user", ["target": user.sid])
         banner = "正在呼叫 \(user.name)…"
     }
@@ -177,14 +202,33 @@ final class MainServerSession: ObservableObject {
 
     // MARK: 通话：连临时服务器
 
+    /// 主叫兜底：call-started 丢了（重连换 sid 等），但从名单能看出对方已进房 → 自己跟进去
+    private func selfHealCall(_ list: [LobbyUser]) {
+        guard phase == .inLobby, pendingCallWasFree, let target = pendingCallSid else { return }
+        guard let row = list.first(where: { $0.sid == target }),
+              let roomId = row.roomId, !roomId.isEmpty else { return }
+        pendingCallSid = nil
+        pendingCallWasFree = false
+        banner = "对方已接通，正在进入房间…"
+        beginCall(roomId: roomId, baseUrl: "")
+    }
+
     private func beginCall(roomId: String, baseUrl: String) {
         // 已经在通话里就不再建第二条（call-started / join-approved 有时会先后到达）
         guard call == nil else { return }
+        pendingCallSid = nil
+        pendingCallWasFree = false
         incoming = nil
         joinRequest = nil
 
-        guard let ep = Endpoint.parse(baseUrl, defaultScheme: "https", defaultPort: 8080) else {
-            banner = "临时服务器地址无效：\(baseUrl)"
+        // baseUrl 是主服务器按"客户端连进来的 Host"推导的。万一推导不出来是空的，
+        // 就退回同一台机器的 8080 —— 主服务器和临时服务器永远同机部署。
+        var raw = baseUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.isEmpty, let host = endpoint?.host {
+            raw = "https://\(host):8080"
+        }
+        guard let media = Endpoint.parse(raw, defaultScheme: "https", defaultPort: 8080) else {
+            banner = "临时服务器地址无效：\(baseUrl.isEmpty ? "服务器没有下发" : baseUrl)"
             phase = .inLobby
             return
         }
@@ -192,7 +236,7 @@ final class MainServerSession: ObservableObject {
         phase = .connecting
         videoSocket?.close()
 
-        let vs = SocketIOClient(endpoint: ep, tag: "main-mesh")
+        let vs = SocketIOClient(endpoint: media, tag: "main-mesh")
         videoSocket = vs
 
         vs.onConnect = { [weak self, weak vs] _ in
@@ -220,7 +264,7 @@ final class MainServerSession: ObservableObject {
         vs.connect()
 
         // 最常见的故障：大厅那台机器没开临时服务器（8080）
-        let display = ep.display
+        let display = media.display
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 4_000_000_000)
             guard let self, self.phase == .connecting else { return }
@@ -255,6 +299,8 @@ final class MainServerSession: ObservableObject {
             s.close(after: 0.3)
         }
         socket = nil
+        chat = nil
+        pendingCallSid = nil
         lobby = []
         incoming = nil
         joinRequest = nil

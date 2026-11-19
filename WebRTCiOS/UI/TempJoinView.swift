@@ -12,6 +12,7 @@ struct TempJoinView: View {
     @AppStorage("wb.nickname") private var nickname = ""
     @State private var draftName = ""
     @State private var pendingLeave = false
+    @State private var showChat = false
     @FocusState private var focused: Field?
 
     private enum Field { case host, name }
@@ -26,6 +27,34 @@ struct TempJoinView: View {
         }
         .navigationTitle("临时服务器")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if let chat = session.chat {
+                    Button {
+                        chat.markRead()
+                        showChat = true
+                    } label: {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .overlay(alignment: .topTrailing) {
+                                if chat.unread > 0 {
+                                    Text("\(min(chat.unread, 99))")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 1)
+                                        .background(Color.red, in: Capsule())
+                                        .offset(x: 8, y: -6)
+                                }
+                            }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showChat) {
+            if let chat = session.chat {
+                ChatSheet(chat: chat)
+            }
+        }
         .alert("来电", isPresented: Binding(
             get: { session.incoming != nil },
             set: { if !$0 { session.answerIncoming(false) } }
