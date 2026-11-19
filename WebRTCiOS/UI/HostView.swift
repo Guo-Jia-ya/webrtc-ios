@@ -10,9 +10,11 @@ struct HostView: View {
     @StateObject private var server = LocalTempServer()
 
     @AppStorage("wb.hostPort") private var portText = "8080"
+    @AppStorage("wb.nickname") private var nickname = ""
     @State private var errorText: String?
     @State private var showPreview = false
     @State private var copied = false
+    @State private var hostCall: HostRoomCall?
 
     var body: some View {
         Form {
@@ -68,16 +70,41 @@ struct HostView: View {
                     } label: {
                         Label(copied ? "已复制" : "复制地址", systemImage: copied ? "checkmark" : "doc.on.doc")
                     }
-
-                    Button {
-                        showPreview = true
-                    } label: {
-                        Label("在本机预览页面", systemImage: "safari")
-                    }
                 } header: {
                     Text("把下面这个地址发给同一 Wi-Fi 下的人")
                 } footer: {
                     Text("对方用浏览器打开后输入昵称即可进入，最多 4 人。首次打开会提示证书不受信任，点「高级 → 继续前往」。")
+                }
+
+                // 主机自己也要能进房间，否则"手机当主机"就只是当了个服务器，
+                // 这台 iPhone 反而看不到画面。
+                Section {
+                    HStack {
+                        Text("你的昵称")
+                        Spacer()
+                        TextField("昵称", text: $nickname)
+                            .multilineTextAlignment(.trailing)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .frame(maxWidth: 160)
+                    }
+
+                    Button {
+                        joinSelf()
+                    } label: {
+                        Label("用这台 iPhone 进入房间", systemImage: "video.fill")
+                            .fontWeight(.semibold)
+                    }
+
+                    Button {
+                        showPreview = true
+                    } label: {
+                        Label("在本机预览页面（网页版）", systemImage: "safari")
+                    }
+                } header: {
+                    Text("自己加入")
+                } footer: {
+                    Text("「进入房间」是原生实现，和 app 里其它通话界面一致，推荐用这个；网页预览是备选，自签证书下 WKWebView 的 WebSocket 有时连不上。这里别用首页的「加入临时服务器」——那说的是 socket.io，进不了手机自己开的这个服务器。")
                 }
 
                 Section("房间里的人") {
@@ -139,10 +166,46 @@ struct HostView: View {
                     }
             }
         }
+        .fullScreenCover(isPresented: Binding(
+            get: { hostCall != nil },
+            set: { if !$0 { hostCall = nil } }
+        )) {
+            if let call = hostCall {
+                HostCallView(call: call) { endCall() }
+            }
+        }
         .onDisappear {
+            // 通话中（全屏页盖上来）时不能停服务器，否则通话当场断掉；
+            // 有些系统版本在这种情况下也会触发 onDisappear。
+            guard hostCall == nil else { return }
             // 离开这个页面就别占着端口了
             server.stop()
         }
+    }
+
+    /// 主机自己也进房：走原生 WebSocket + WebRTC，不依赖 WebView
+    private func joinSelf() {
+        guard server.running else {
+            errorText = "请先点「启动服务器」"
+            return
+        }
+        let nick = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        let display = nick.isEmpty ? "主机" : nick
+        if nick.isEmpty { nickname = display }
+
+        let call = HostRoomCall(port: server.port, name: display)
+        call.onEnded = { [weak self] reason in
+            guard let self else { return }
+            self.errorText = reason
+            self.hostCall = nil
+        }
+        hostCall = call
+        Task { await call.start() }
+    }
+
+    private func endCall() {
+        hostCall?.hangUp()
+        hostCall = nil
     }
 
     private func toggle() {

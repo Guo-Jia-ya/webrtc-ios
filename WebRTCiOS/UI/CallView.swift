@@ -2,13 +2,26 @@
 //  CallView.swift
 //  通话页：本地 + 远端画面宫格，底部控制条
 //
+//  画面和控制条抽成 CallStage，是为了让两条完全不同的链路共用同一套 UI：
+//    · CallView      —— 加入主服务器 / 加入临时服务器（socket.io，MeshCall）
+//    · HostCallView  —— 手机当主机时，自己进自己的房间（裸 WebSocket，HostRoomCall）
+//
 
 import SwiftUI
 import WebRTC
 import UIKit
 
-struct CallView: View {
-    @ObservedObject var call: MeshCall
+/// 纯展示层：只吃状态和回调，不关心信令是什么协议
+struct CallStage: View {
+    let localTrack: RTCVideoTrack?
+    let remoteTracks: [String: RTCVideoTrack]
+    let status: String
+    let memberCount: Int
+    let micOn: Bool
+    let cameraOn: Bool
+    let onMic: () -> Void
+    let onCamera: () -> Void
+    let onFlip: () -> Void
     let onHangUp: () -> Void
 
     private struct Tile: Identifiable {
@@ -19,9 +32,9 @@ struct CallView: View {
     }
 
     private var tiles: [Tile] {
-        var list: [Tile] = [Tile(id: "local", track: call.localTrack, title: "我", isLocal: true)]
+        var list: [Tile] = [Tile(id: "local", track: localTrack, title: "我", isLocal: true)]
         // 字典顺序不稳定，排一下避免画面来回换位置
-        for (id, track) in call.remoteTracks.sorted(by: { $0.key < $1.key }) {
+        for (id, track) in remoteTracks.sorted(by: { $0.key < $1.key }) {
             list.append(Tile(id: id, track: track, title: String(id.prefix(4)), isLocal: false))
         }
         return list
@@ -39,12 +52,12 @@ struct CallView: View {
 
             VStack(spacing: 0) {
                 HStack {
-                    Text(call.status)
+                    Text(status)
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.75))
                         .lineLimit(1)
                     Spacer()
-                    Text("\(call.memberCount) 人")
+                    Text("\(memberCount) 人")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.75))
                 }
@@ -85,29 +98,25 @@ struct CallView: View {
                 }
 
                 HStack(spacing: 18) {
-                    controlButton(icon: call.micOn ? "mic.fill" : "mic.slash.fill",
-                                  label: call.micOn ? "静音" : "取消静音",
-                                  tint: call.micOn ? Color.white.opacity(0.15) : Color.orange) {
-                        call.toggleMic()
-                    }
+                    controlButton(icon: micOn ? "mic.fill" : "mic.slash.fill",
+                                  label: micOn ? "静音" : "取消静音",
+                                  tint: micOn ? Color.white.opacity(0.15) : Color.orange,
+                                  action: onMic)
 
-                    controlButton(icon: call.cameraOn ? "video.fill" : "video.slash.fill",
-                                  label: call.cameraOn ? "关摄像头" : "开摄像头",
-                                  tint: call.cameraOn ? Color.white.opacity(0.15) : Color.orange) {
-                        call.toggleCamera()
-                    }
+                    controlButton(icon: cameraOn ? "video.fill" : "video.slash.fill",
+                                  label: cameraOn ? "关摄像头" : "开摄像头",
+                                  tint: cameraOn ? Color.white.opacity(0.15) : Color.orange,
+                                  action: onCamera)
 
                     controlButton(icon: "arrow.triangle.2.circlepath.camera",
                                   label: "翻转",
-                                  tint: Color.white.opacity(0.15)) {
-                        call.switchCamera()
-                    }
+                                  tint: Color.white.opacity(0.15),
+                                  action: onFlip)
 
                     controlButton(icon: "phone.down.fill",
                                   label: "挂断",
-                                  tint: .red) {
-                        onHangUp()
-                    }
+                                  tint: .red,
+                                  action: onHangUp)
                 }
                 .padding(.top, 10)
                 .padding(.bottom, 24)
@@ -135,5 +144,43 @@ struct CallView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// 主服务器 / 临时服务器（socket.io 那条路）
+struct CallView: View {
+    @ObservedObject var call: MeshCall
+    let onHangUp: () -> Void
+
+    var body: some View {
+        CallStage(localTrack: call.localTrack,
+                  remoteTracks: call.remoteTracks,
+                  status: call.status,
+                  memberCount: call.memberCount,
+                  micOn: call.micOn,
+                  cameraOn: call.cameraOn,
+                  onMic: { call.toggleMic() },
+                  onCamera: { call.toggleCamera() },
+                  onFlip: { call.switchCamera() },
+                  onHangUp: onHangUp)
+    }
+}
+
+/// 手机当主机时，自己以客户端身份进自己的房间（裸 WebSocket 那条路）
+struct HostCallView: View {
+    @ObservedObject var call: HostRoomCall
+    let onHangUp: () -> Void
+
+    var body: some View {
+        CallStage(localTrack: call.localTrack,
+                  remoteTracks: call.remoteTracks,
+                  status: call.status,
+                  memberCount: call.memberCount,
+                  micOn: call.micOn,
+                  cameraOn: call.cameraOn,
+                  onMic: { call.toggleMic() },
+                  onCamera: { call.toggleCamera() },
+                  onFlip: { call.switchCamera() },
+                  onHangUp: onHangUp)
     }
 }

@@ -11,6 +11,7 @@ struct TempJoinView: View {
     @AppStorage("wb.tempHost") private var host = ""
     @AppStorage("wb.nickname") private var nickname = ""
     @State private var draftName = ""
+    @State private var pendingLeave = false
     @FocusState private var focused: Field?
 
     private enum Field { case host, name }
@@ -44,6 +45,20 @@ struct TempJoinView: View {
         }
         .onAppear {
             if draftName.isEmpty { draftName = nickname }
+            pendingLeave = false
+        }
+        .onDisappear {
+            // 侧滑返回 / 点返回箭头时也得把人从大厅名单里撤掉。
+            // 全屏通话页盖上来时某些系统版本也会触发 onDisappear，所以：
+            //   ① 只在"在大厅里"时才考虑退出；
+            //   ② 延迟 0.7 秒再确认，期间又 onAppear 了说明只是被盖住。
+            guard session.phase == .inLobby else { return }
+            pendingLeave = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                guard self.pendingLeave else { return }
+                self.pendingLeave = false
+                self.session.leave()
+            }
         }
     }
 

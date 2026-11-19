@@ -11,6 +11,7 @@ struct MainServerView: View {
     @AppStorage("wb.mainHost") private var host = ""
     @AppStorage("wb.mainAccount") private var account = ""
     @State private var password = ""
+    @State private var pendingLeave = false
     @FocusState private var focused: Field?
 
     private enum Field { case host, account, password }
@@ -40,6 +41,18 @@ struct MainServerView: View {
         )) {
             if let call = session.call {
                 CallView(call: call) { session.hangUp() }
+            }
+        }
+        .onAppear { pendingLeave = false }
+        .onDisappear {
+            // 和临时服务器那边同理：返回上一页也要把账号从大厅撤掉，
+            // 否则主服务器的名单里会一直挂着这个已经不在的人。
+            guard session.phase == .inLobby else { return }
+            pendingLeave = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                guard self.pendingLeave else { return }
+                self.pendingLeave = false
+                self.session.leave()
             }
         }
     }

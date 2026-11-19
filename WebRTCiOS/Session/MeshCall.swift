@@ -83,22 +83,28 @@ final class MeshCall: ObservableObject {
             self?.status = "已进入房间"
         }
 
-        // 房间里已有的人：我作为新人主动给每个人发 offer
+        // ⚠️ "谁发 offer" 必须和桌面网页（servers/temp/public/mesh.js）一字不差：
+        //   user-list   → 我是后进来的那一个，只**等**已经在房里的人发起；
+        //   user-joined → 我本来就在房里，由我主动发起。
+        // 之前这里写成了"新人主动 offer"，于是：
+        //   · 我先在房里、网页后进来 → 我也等、网页也等 → 双方一直停在"等待对方建立连接中"；
+        //   · 网页先在房里、我后进来 → 我也 offer、网页也 offer → glare，两条链都建不起来。
+        // 表现就是无论谁发起通话，两边都看不到画面。
         socket.on("user-list") { [weak self] payload in
             guard let self, let ids = payload as? [String] else { return }
             for id in ids where id != self.socket.socketId {
-                self.engine.connect(to: id, createOffer: true)
+                self.engine.connect(to: id, createOffer: false)
             }
             self.memberCount = ids.count + 1
+            if ids.isEmpty { self.status = "已进入房间，等待其他人加入…" }
         }
 
         socket.on("user-joined") { [weak self] payload in
-            // 新人会主动发 offer 过来，这里只更新人数，不主动建链
             guard let self else { return }
-            if let d = payload as? [String: Any], let id = d["peerId"] as? String,
-               id != self.socket.socketId {
-                self.status = "有人加入，等待对方建立连接…"
-            }
+            guard let d = payload as? [String: Any], let id = d["peerId"] as? String,
+                  id != self.socket.socketId else { return }
+            self.status = "有人加入，正在建立连接…"
+            self.engine.connect(to: id, createOffer: true)
         }
 
         socket.on("offer") { [weak self] payload in
@@ -197,7 +203,10 @@ final class MeshCall: ObservableObject {
     func hangUp() {
         socket.emit("hang-up")
         engine.teardown()
-        if ownsSocket { socket.close() }
+        // 这条 socket 是我们为本次通话新建的（主服务器那条路）→ 用完关掉。
+        // 必须等 hang-up 发出去再断，否则服务端不知道名额已经释放，
+        // 大厅里会一直显示"通话中"。
+        if ownsSocket { socket.close(after: 0.25) }
         started = false
     }
 

@@ -89,7 +89,8 @@ final class MainServerSession: ObservableObject {
     private func bindLobbyEvents(_ s: SocketIOClient) {
         s.on("lobby-state") { [weak self] payload in
             guard let self, let arr = payload as? [Any] else { return }
-            self.lobby = arr.compactMap { LobbyUser(json: $0) }
+            let list = arr.compactMap { LobbyUser(json: $0) }
+            self.lobby = LobbyUser.dedupe(list, prefer: s.socketId)
         }
 
         s.on("incoming-call") { [weak self] payload in
@@ -177,6 +178,8 @@ final class MainServerSession: ObservableObject {
     // MARK: 通话：连临时服务器
 
     private func beginCall(roomId: String, baseUrl: String) {
+        // 已经在通话里就不再建第二条（call-started / join-approved 有时会先后到达）
+        guard call == nil else { return }
         incoming = nil
         joinRequest = nil
 
@@ -236,12 +239,21 @@ final class MainServerSession: ObservableObject {
     }
 
     func leave() {
-        call?.hangUp()
+        if let active = call {
+            // MeshCall 自己会对 ownsSocket 的通话连接做延迟关闭（先把 hang-up 送出去）
+            active.hangUp()
+        } else {
+            // 还在 connecting、没有 MeshCall 时，这里兜住那条连接
+            videoSocket?.close()
+        }
         call = nil
-        videoSocket?.close()
         videoSocket = nil
-        socket?.emit("lobby-leave")
-        socket?.close()
+        if let s = socket {
+            s.emit("lobby-leave")
+            // 主服务器收到断线就立刻把人从名单里删掉，但 lobby-leave 这一帧
+            // 也得有机会发出去：它同时给了服务端一个"这是正常退出"的信号。
+            s.close(after: 0.3)
+        }
         socket = nil
         lobby = []
         incoming = nil

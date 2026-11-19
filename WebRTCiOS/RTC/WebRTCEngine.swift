@@ -3,8 +3,12 @@
 //  房间内的 Mesh 通话引擎
 //
 //  拓扑：N 个成员两两建一条 PeerConnection（全连接）。
-//  谁来发 offer？—— 新进来的人向所有已在房间里的人发，老成员只负责 answer。
-//  这样任何时刻一条链路上只有一个 offer，天然避开"双方同时 offer"的 glare。
+//  谁来发 offer？—— 以**桌面网页**为准（servers/temp/public/mesh.js）：
+//  已经在房里的人收到 user-joined 后主动发起，后进来的人只回答。
+//  这样任何时刻一条链路上只有一个 offer，天然避开"双方同时 offer"的 glare；
+//  万一还是撞上了，handleSignal 里会把主动的一方降级成应答方兜底。
+//  注意：手机当主机时用的那套裸 WebSocket 协议规则相反（新人主动 offer，见 HostedPage.swift），
+//  HostRoomCall 里按那一套来。
 //
 //  另一个刻意的选择：**不做 trickle ICE**。
 //  正常 WebRTC 是 SDP 和 ICE 候选分多条消息发，候选可能比 SDP 先到，接收方
@@ -245,6 +249,17 @@ final class WebRTCEngine: NSObject {
             let desc = RTCSessionDescription(type: typeText == "offer" ? .offer : .answer, sdp: sdpText)
 
             if desc.type == .offer {
+                // 双方同时发了 offer（glare）：谁先到谁赢，我们放弃自己那份、
+                // 把自己降级成纯应答方。iOS 与桌面网页的"谁发起"规则已经对齐，
+                // 正常不会再撞，但网络抖动 / 重连时仍可能撞上，这里必须兜住。
+                if let existing = peers[peerId],
+                   existing.signalingState == .haveLocalOffer ||
+                   existing.signalingState == .haveLocalPrAnswer {
+                    existing.close()
+                    peers.removeValue(forKey: peerId)
+                    peerIdOf.removeValue(forKey: ObjectIdentifier(existing))
+                    descriptionSent.remove(peerId)
+                }
                 if peers[peerId] == nil { connect(to: peerId, createOffer: false) }
                 guard let pc = peers[peerId] else { return }
                 pc.setRemoteDescription(desc) { [weak self] error in

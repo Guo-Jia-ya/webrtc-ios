@@ -47,7 +47,12 @@ final class TempServerSession: ObservableObject {
         banner = nil
         busy = true
 
-        socket?.close()
+        // 旧连接先"打个招呼"再走：只是 close 的话服务端可能要等到 pingTimeout
+        // 才发现这人走了，期间用同一个昵称重新进来就并排多出一栏。
+        if let old = socket {
+            old.emit("lobby-leave")
+            old.close(after: 0.35)
+        }
         let s = SocketIOClient(endpoint: ep, tag: "temp")
         socket = s
 
@@ -74,7 +79,8 @@ final class TempServerSession: ObservableObject {
     private func bind(_ s: SocketIOClient) {
         s.on("lobby-state") { [weak self] payload in
             guard let self, let arr = payload as? [Any] else { return }
-            self.lobby = arr.compactMap { LobbyUser(json: $0) }
+            let list = arr.compactMap { LobbyUser(json: $0) }
+            self.lobby = LobbyUser.dedupe(list, prefer: s.socketId)
         }
 
         s.on("incoming-call") { [weak self] payload in
@@ -82,6 +88,14 @@ final class TempServerSession: ObservableObject {
         }
 
         s.on("call-started") { [weak self] payload in
+            guard let self, let d = payload as? [String: Any],
+                  let roomId = d["roomId"] as? String else { return }
+            self.beginMesh(roomId: roomId)
+        }
+
+        // 点了一个"通话中"的人 → 房间里每个人都同意之后，服务端只回给申请人这一条。
+        // 少了它，加入别人房间这条路就永远走不到 mesh-join。
+        s.on("join-approved") { [weak self] payload in
             guard let self, let d = payload as? [String: Any],
                   let roomId = d["roomId"] as? String else { return }
             self.beginMesh(roomId: roomId)
@@ -138,6 +152,8 @@ final class TempServerSession: ObservableObject {
 
     private func beginMesh(roomId: String) {
         guard let s = socket else { return }
+        // 已经在通话里就不要再建一条（call-started / join-approved 有可能先后都到）
+        guard call == nil else { return }
         incoming = nil
         joinRequest = nil
 
@@ -163,8 +179,12 @@ final class TempServerSession: ObservableObject {
     func leave() {
         call?.hangUp()
         call = nil
-        socket?.emit("lobby-leave")
-        socket?.close()
+        if let s = socket {
+            s.emit("lobby-leave")
+            // 等 lobby-leave 真正发出去再断，否则服务端只看到断线，
+            // 名单里这一行要等 20 秒宽限期才消失，期间同名重进就是两栏。
+            s.close(after: 0.35)
+        }
         socket = nil
         lobby = []
         incoming = nil

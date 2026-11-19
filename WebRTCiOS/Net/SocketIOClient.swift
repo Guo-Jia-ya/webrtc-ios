@@ -252,18 +252,33 @@ final class SocketIOClient {
         }
     }
 
-    func close() {
-        closedByUser = true
+    /// 关闭连接。
+    ///
+    /// - Parameter delay: 延迟多少秒才真正断开。
+    ///   `URLSessionWebSocketTask.send` 是**异步**的，emit 之后立刻 cancel 会把还没发出去的帧丢掉。
+    ///   服务端收不到 `lobby-leave`，只能等 pingTimeout / TCP 断开才发现这人走了，
+    ///   大厅里就会留下一个"幽灵"——也就是"退出后那一栏不消失、再进来多出一个同名栏"。
+    ///   给 0.2~0.4 秒，局域网足够把最后一帧送出去。
+    func close(after delay: TimeInterval = 0) {
+        closedByUser = true            // 立刻禁止自动重连
         lock.lock()
         isConnected = false
         let t = task
         task = nil
         queued.removeAll()
         lock.unlock()
-        // 注意：必须先取出 task 再置 nil，否则 cancel 作用在一个空引用上，
-        // 服务端要等到 pingTimeout 才发现这条连接死了。
-        t?.cancel(with: .normalClosure, reason: nil)
-        session?.invalidateAndCancel()
+
+        let s = session
         session = nil
+
+        if delay <= 0 {
+            t?.cancel(with: .normalClosure, reason: nil)
+            s?.invalidateAndCancel()
+            return
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + delay) {
+            t?.cancel(with: .normalClosure, reason: nil)
+            s?.invalidateAndCancel()
+        }
     }
 }
