@@ -338,6 +338,21 @@ final class WebRTCEngine: NSObject {
         }
     }
 
+    /// 只拆掉所有对端连接，**保留本地摄像头/麦克风**。
+    ///
+    /// 用途：socket 重连之后我的 socket.id 变了，对端眼里我已经是一个新人，
+    /// 旧的那些 PeerConnection 全是死的（对端也已经把我清掉了）。
+    /// 这时候不能调用 teardown()——那会把采集也停掉，重进房间后就成了一块黑屏。
+    func resetConnections() {
+        for (_, pc) in peers {
+            peerIdOf.removeValue(forKey: ObjectIdentifier(pc))
+            pc.close()
+        }
+        peers.removeAll()
+        pendingIce.removeAll()
+        descriptionSent.removeAll()
+    }
+
     func teardown() {
         for (_, pc) in peers {
             peerIdOf.removeValue(forKey: ObjectIdentifier(pc))

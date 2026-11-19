@@ -384,3 +384,76 @@ iOS 的 `MeshCall` 写反了（`user-list` 主动 offer、`user-joined` 干等�
 排查时看大厅顶部那条状态文字即可：
 `正在呼叫…` = 还没收到接通；`对方已接通，正在进入房间…` = 兜底生效；
 `连不上临时服务器…` = 8080 没起来；`本地媒体初始化失败…` = 相机/麦克风问题。
+
+## 十三、页面跳转重写：不再用 alert / fullScreenCover（2026-11-19 真机反馈）
+
+### 症状（三条其实是同一个根因）
+
+1. 主服务器里，桌面端发「加入申请」时，iOS **突然从房间退回大厅**、卡片还自动拒绝了一次；
+   第二次申请能答，但答完**回不去房间**；
+2. 临时服务器里，无论谁发起，iOS 都**跳不到通话页**，可是别的端能看到 iOS 的画面和声音
+   （说明 `mesh-join` 早就成功了，只是界面没盖上来）；
+3. 大厅右上角的聊天按钮点了没反应。
+
+### 根因：模态呈现打架
+
+原写法是：
+
+```swift
+.sheet(isPresented: $showChat) { ... }
+.alert("来电", isPresented: Binding(get: { session.incoming != nil }, set: { ... })) { ... }
+.fullScreenCover(isPresented: Binding(get: { session.call != nil }, set: { _ in })) { CallView(...) }
+```
+
+同一个视图上叠了三个模态呈现修饰符，而且通话页的 Binding 是**只读的**（`set: { _ in }`）。
+这会带来两个必然结果：
+
+* UIKit 要弹 alert，就必须先把它上面那个 fullScreenCover **dismiss 掉** ——
+  于是"人在房间里"收到加入申请，界面被打回大厅；
+* 被系统 dismiss 时 SwiftUI 会回调 `set(false)`，而这个 Binding 忽略写入、
+  `session.call` 仍然非空，**封面再也无法第二次呈现**，同时也顺手触发了
+  `answerJoinRequest(false)`（自动拒绝就来自这里）。
+
+同一个视图上只能可靠工作一个 `.sheet` / `.alert` / `.fullScreenCover`，
+这条在 SwiftUI 里是长期行为，不是偶发。
+
+### 改法：整页改成"一层 ZStack + 三层"
+
+```swift
+ZStack {
+    content                                   // 登录表单 / 大厅名单
+    if let call = session.call {              // 第 1 层：通话页，直接铺开
+        CallView(call: call) { session.hangUp() }.zIndex(1)
+    }
+    prompts                                   // 第 2 层：来电 / 加入申请卡片
+}
+```
+
+* 通话页**不再是 modal**：`session.call != nil` 就一定看得见，不存在"跳不上去 / 回不来"；
+* 来电、加入申请改成 `UI/SessionPrompt.swift` 里的 `PromptCard`（纯 SwiftUI 浮层），
+  盖在房间界面之上，答完仍然在房间里；
+* 通话中隐藏导航栏并禁用返回（`navigationBarBackButtonHidden(inCall)`），
+  避免误触把通话页弹掉；
+* 只剩聊天一个 `.sheet`，附件预览 / 文件选择合并成一个 `Modal` 枚举，
+  不再两个 `.sheet` 挂在同一个视图上。
+
+顺带修的：
+
+| 改动 | 为什么 |
+|---|---|
+| 加入申请改成**排队**（`joinQueue`），30 秒本地超时 | 系统弹窗一次只能显示一条，后来的会把前一条吞掉；服务端 30 秒就作废了 |
+| `ChatToolbarButton`（`@ObservedObject`） | 未读角标原来挂在父视图上，未读数变化不会触发重绘 |
+| `SocketIOClient.connectCount` | 区分首连 / 重连 |
+
+### 弱网重连：现在能自己回到房间
+
+以前 socket 一断就彻底掉线（重连上限 5 次、约 20 秒），人还在"通话页"上，别人已经看不到他。
+
+* `maxReconnect` 5 → 30，单次最长 8 秒（约能扛 4 分钟断网）；
+* 重连成功（`connectCount > 1`）时：
+  * 临时服务器：重新 `lobby-join`，并调 `MeshCall.recover()`；
+  * 主服务器：大厅连接发 `room-resume` 要回房间名额，媒体连接调 `MeshCall.recover()`；
+* `MeshCall.recover()` 只拆对端连接（`WebRTCEngine.resetConnections()`，**保留采集**，
+  否则回来就是黑屏），然后带 `rejoin: true` 重新 `mesh-join`：
+  房间还在 → 服务端 `peer-rejoined`，其他人重新给我发 offer；
+  房间已经回收 → `room-missing`，老老实实结束通话，不会造一个只有自己的空房间。

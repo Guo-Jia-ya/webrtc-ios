@@ -33,6 +33,9 @@ final class TempServerSession: ObservableObject {
     /// 只有"对方原本空闲、接听后新开房间"这种情况才允许兜底自动进房；
     /// 对方本来就在房间里（走的是"加入申请"，需要房间里每个人同意），绝不能自动跳进去。
     private var pendingCallWasFree = false
+    /// 同一时刻可能有多个人申请加入。系统弹窗只能显示一个，所以排队：
+    /// 答完当前这条立刻顶上来，绝不"后来的把前面那条吞掉"。
+    private var joinQueue: [JoinRequestInfo] = []
 
     var others: [LobbyUser] {
         let mine = socket?.socketId
@@ -73,8 +76,14 @@ final class TempServerSession: ObservableObject {
         s.onConnect = { [weak self] _ in
             guard let self else { return }
             self.busy = false
-            self.phase = .inLobby
+            // 重连时人还在通话里，就别把界面退回大厅
+            if self.phase != .inCall { self.phase = .inLobby }
             s.emit("lobby-join", ["name": nick])
+            // 重连：socket.id 变了，房间里的名额已经没了，对端也把我清掉了。
+            // 不重新入房就会"人还在通话页、别人都看不到我"。
+            if s.connectCount > 1, let call = self.call {
+                call.recover()
+            }
         }
         s.onDisconnect = { [weak self] reason in
             // 掉线不把人踢回填入页：socket.io 会自己重连，重连成功后 onConnect 里重新登记
@@ -134,11 +143,13 @@ final class TempServerSession: ObservableObject {
         }
 
         s.on("join-request") { [weak self] payload in
-            self?.joinRequest = JoinRequestInfo(json: payload)
+            guard let req = JoinRequestInfo(json: payload) else { return }
+            self?.pushJoin(req)
         }
 
-        s.on("join-cancelled") { [weak self] _ in
-            self?.joinRequest = nil
+        s.on("join-cancelled") { [weak self] payload in
+            let id = (payload as? [String: Any])?["requestId"] as? String
+            self?.dropJoin(id)
         }
 
         s.on("peer-joining") { [weak self] payload in
@@ -167,7 +178,37 @@ final class TempServerSession: ObservableObject {
     func answerJoinRequest(_ accept: Bool) {
         guard let req = joinRequest else { return }
         socket?.emit("join-response", ["requestId": req.requestId, "accept": accept])
-        joinRequest = nil
+        advanceJoin()
+    }
+
+    // MARK: 加入申请队列
+
+    private func pushJoin(_ req: JoinRequestInfo) {
+        if joinRequest == nil {
+            joinRequest = req
+        } else if joinRequest?.requestId != req.requestId,
+                  !joinQueue.contains(where: { $0.requestId == req.requestId }) {
+            joinQueue.append(req)
+        }
+        // 服务端 30 秒就把这条申请作废了（只通知申请人）。
+        // 界面上那张卡如果一直留着，用户点了也没人接，所以本地也超时收掉。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            self?.dropJoin(req.requestId)
+        }
+    }
+
+    private func advanceJoin() {
+        joinRequest = joinQueue.isEmpty ? nil : joinQueue.removeFirst()
+    }
+
+    private func dropJoin(_ id: String?) {
+        guard let id else {
+            joinQueue.removeAll()
+            joinRequest = nil
+            return
+        }
+        joinQueue.removeAll { $0.requestId == id }
+        if joinRequest?.requestId == id { advanceJoin() }
     }
 
     // MARK: 通话：在同一个 socket 上开房间
@@ -198,6 +239,7 @@ final class TempServerSession: ObservableObject {
         pendingCallWasFree = false
         incoming = nil
         joinRequest = nil
+        joinQueue.removeAll()
 
         let call = MeshCall(socket: s, roomId: roomId, name: myName, ownsSocket: false)
         call.onEnded = { [weak self] reason in
@@ -233,6 +275,7 @@ final class TempServerSession: ObservableObject {
         lobby = []
         incoming = nil
         joinRequest = nil
+        joinQueue.removeAll()
         banner = nil
         phase = .idle
     }

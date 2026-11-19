@@ -35,6 +35,8 @@ final class MainServerSession: ObservableObject {
     /// 呼叫时对方是否空闲。只有这种情况才允许兜底自动进房；
     /// 对方已在房间里走的是"加入申请"（需房间成员同意），不能自动跳进去。
     private var pendingCallWasFree = false
+    /// 加入申请排队（系统弹窗一次只能显示一条，答完立刻顶下一条）
+    private var joinQueue: [JoinRequestInfo] = []
 
     /// 大厅里除我以外的人
     var others: [LobbyUser] {
@@ -85,9 +87,14 @@ final class MainServerSession: ObservableObject {
         s.onConnect = { [weak self] _ in
             guard let self else { return }
             self.banner = nil
-            self.phase = .inLobby
+            if self.phase != .inCall { self.phase = .inLobby }
             // 重连后必须重新登记，否则别人名单里没有我
             s.emit("lobby-join", ["name": self.myName, "userId": self.userId])
+            // 正在通话时重连：服务端房间账本里我已经没了（sid 变了），
+            // 要按原来的房间重新登记，否则别人看我永远是"空闲"、也进不来。
+            if s.connectCount > 1, let call = self.call {
+                s.emit("room-resume", ["roomId": call.roomId])
+            }
         }
         s.onDisconnect = { [weak self] reason in
             // 掉线不踢回登录页：socket.io 会自动重连，重连成功后 onConnect 重新登记
@@ -153,11 +160,13 @@ final class MainServerSession: ObservableObject {
 
         // 有人想加入我正在的房间：房间里每个人都得同意
         s.on("join-request") { [weak self] payload in
-            self?.joinRequest = JoinRequestInfo(json: payload)
+            guard let req = JoinRequestInfo(json: payload) else { return }
+            self?.pushJoin(req)
         }
 
-        s.on("join-cancelled") { [weak self] _ in
-            self?.joinRequest = nil
+        s.on("join-cancelled") { [weak self] payload in
+            let id = (payload as? [String: Any])?["requestId"] as? String
+            self?.dropJoin(id)
         }
 
         s.on("peer-joining") { [weak self] payload in
@@ -197,7 +206,36 @@ final class MainServerSession: ObservableObject {
     func answerJoinRequest(_ accept: Bool) {
         guard let req = joinRequest else { return }
         socket?.emit("join-response", ["requestId": req.requestId, "accept": accept])
-        joinRequest = nil
+        advanceJoin()
+    }
+
+    // MARK: 加入申请队列
+
+    private func pushJoin(_ req: JoinRequestInfo) {
+        if joinRequest == nil {
+            joinRequest = req
+        } else if joinRequest?.requestId != req.requestId,
+                  !joinQueue.contains(where: { $0.requestId == req.requestId }) {
+            joinQueue.append(req)
+        }
+        // 服务端 30 秒作废，界面上的卡也要跟着收掉
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            self?.dropJoin(req.requestId)
+        }
+    }
+
+    private func advanceJoin() {
+        joinRequest = joinQueue.isEmpty ? nil : joinQueue.removeFirst()
+    }
+
+    private func dropJoin(_ id: String?) {
+        guard let id else {
+            joinQueue.removeAll()
+            joinRequest = nil
+            return
+        }
+        joinQueue.removeAll { $0.requestId == id }
+        if joinRequest?.requestId == id { advanceJoin() }
     }
 
     // MARK: 通话：连临时服务器
@@ -220,6 +258,7 @@ final class MainServerSession: ObservableObject {
         pendingCallWasFree = false
         incoming = nil
         joinRequest = nil
+        joinQueue.removeAll()
 
         // baseUrl 是主服务器按"客户端连进来的 Host"推导的。万一推导不出来是空的，
         // 就退回同一台机器的 8080 —— 主服务器和临时服务器永远同机部署。
@@ -241,6 +280,12 @@ final class MainServerSession: ObservableObject {
 
         vs.onConnect = { [weak self, weak vs] _ in
             guard let self, let vs else { return }
+            // 重连：通话对象已经存在，只要让它重新入房，别新建一个（否则画面全丢）
+            if let existing = self.call {
+                if vs.connectCount > 1 { existing.recover() }
+                self.phase = .inCall
+                return
+            }
             let call = MeshCall(socket: vs, roomId: roomId, name: self.myName, ownsSocket: true)
             call.onEnded = { [weak self] reason in
                 guard let self else { return }
@@ -275,9 +320,18 @@ final class MainServerSession: ObservableObject {
     // MARK: 离开
 
     func hangUp() {
-        call?.hangUp()
+        let active = call
         call = nil
+        if let active {
+            // MeshCall 会对 ownsSocket 的那条连接做延迟关闭（先把 hang-up 送出去）
+            active.hangUp()
+        } else {
+            // 还停在 connecting、没有 MeshCall 时，这里兜住那条半开着的连接
+            videoSocket?.close(after: 0.2)
+        }
         videoSocket = nil
+        // 房间名额记在**主服务器那条连接**（3007）上，所以必须在这条上挂断，
+        // 否则名单里我会一直显示"通话中"，别人也永远叫不动我。
         socket?.emit("hang-up")
         phase = .inLobby
     }
@@ -304,6 +358,7 @@ final class MainServerSession: ObservableObject {
         lobby = []
         incoming = nil
         joinRequest = nil
+        joinQueue.removeAll()
         banner = nil
         phase = .idle
     }

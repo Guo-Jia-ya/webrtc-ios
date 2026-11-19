@@ -1,6 +1,13 @@
 //
 //  MainServerView.swift
-//  加入主服务器：登录 → 大厅 → 呼叫 / 接听
+//  加入主服务器：登录 → 大厅 → 呼叫 / 接听 / 进房间
+//
+//  页面结构刻意做成"一层 ZStack + 三个层"，而不是用 alert / fullScreenCover：
+//    0 层：登录表单 或 大厅名单
+//    1 层：通话页（CallView）—— 直接盖在大厅上，不经过任何 modal
+//    2 层：来电 / 加入申请卡片 —— 盖在通话页之上
+//  这样"人在房间里收到加入申请"时，卡片出现在房间界面上，答完仍然在房间里，
+//  不会像以前那样被系统 alert 顶回大厅、还顺手替用户拒绝一次。
 //
 
 import SwiftUI
@@ -17,35 +24,31 @@ struct MainServerView: View {
 
     private enum Field { case host, account, password }
 
+    private var inCall: Bool { session.call != nil }
+
     var body: some View {
-        Group {
-            if session.phase == .idle {
-                loginForm
-            } else {
-                lobby
+        ZStack {
+            content
+
+            // 通话页：直接在层里铺开，进来就不再依赖任何模态
+            if let call = session.call {
+                CallView(call: call) { session.hangUp() }
+                    .zIndex(1)
             }
+
+            // 来电 / 加入申请：永远画在最上面，不管当前在大厅还是房间
+            prompts
         }
         .navigationTitle("主服务器")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(inCall)
+        .toolbar(inCall ? .hidden : .visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if let chat = session.chat {
-                    Button {
+                    ChatToolbarButton(chat: chat) {
                         chat.markRead()
                         showChat = true
-                    } label: {
-                        Image(systemName: "bubble.left.and.bubble.right")
-                            .overlay(alignment: .topTrailing) {
-                                if chat.unread > 0 {
-                                    Text("\(min(chat.unread, 99))")
-                                        .font(.system(size: 9, weight: .bold))
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
-                                        .background(Color.red, in: Capsule())
-                                        .offset(x: 8, y: -6)
-                                }
-                            }
                     }
                 }
             }
@@ -55,34 +58,45 @@ struct MainServerView: View {
                 ChatSheet(chat: chat)
             }
         }
-        .alert("来电", isPresented: Binding(
-            get: { session.incoming != nil },
-            set: { if !$0 { session.answerIncoming(false) } }
-        )) {
-            Button("拒绝", role: .cancel) { session.answerIncoming(false) }
-            Button("接听") { session.answerIncoming(true) }
-        } message: {
-            Text("\(session.incoming?.fromName ?? "有人") 想和你通话")
-        }
-        .fullScreenCover(isPresented: Binding(
-            get: { session.call != nil },
-            set: { _ in }
-        )) {
-            if let call = session.call {
-                CallView(call: call) { session.hangUp() }
-            }
-        }
         .onAppear { pendingLeave = false }
-        .onDisappear {
-            // 和临时服务器那边同理：返回上一页也要把账号从大厅撤掉，
-            // 否则主服务器的名单里会一直挂着这个已经不在的人。
-            guard session.phase == .inLobby else { return }
-            pendingLeave = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-                guard self.pendingLeave else { return }
-                self.pendingLeave = false
-                self.session.leave()
-            }
+        .onDisappear { scheduleLeave() }
+    }
+
+    // MARK: 第 0 层
+
+    @ViewBuilder
+    private var content: some View {
+        if session.phase == .idle {
+            loginForm
+        } else {
+            lobby
+        }
+    }
+
+    // MARK: 第 2 层：来电 / 加入申请
+
+    @ViewBuilder
+    private var prompts: some View {
+        if let inc = session.incoming {
+            PromptCard(title: "来电",
+                       message: "\(inc.fromName) 想和你通话",
+                       systemImage: "phone.arrow.down.left",
+                       primaryTitle: "接听",
+                       secondaryTitle: "拒绝",
+                       accent: .green,
+                       onPrimary: { session.answerIncoming(true) },
+                       onSecondary: { session.answerIncoming(false) })
+                .zIndex(2)
+        } else if let req = session.joinRequest {
+            PromptCard(title: "加入申请",
+                       message: "\(req.requesterName) 想加入当前通话（\(req.size)/\(req.max) 人）",
+                       systemImage: "person.badge.plus",
+                       primaryTitle: "同意",
+                       secondaryTitle: "拒绝",
+                       accent: .orange,
+                       onPrimary: { session.answerJoinRequest(true) },
+                       onSecondary: { session.answerJoinRequest(false) })
+                .zIndex(2)
         }
     }
 
@@ -156,9 +170,7 @@ struct MainServerView: View {
         List {
             if let banner = session.banner {
                 Section {
-                    Text(banner)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    Text(banner).font(.footnote).foregroundStyle(.secondary)
                 }
             }
 
@@ -187,19 +199,21 @@ struct MainServerView: View {
         }
         .listStyle(.insetGrouped)
         .refreshable {
-            // 名单由服务端推送，这里只是给用户一个"重来一次"的手感
             try? await Task.sleep(nanoseconds: 300_000_000)
         }
-        .alert("加入申请", isPresented: Binding(
-            get: { session.joinRequest != nil },
-            set: { if !$0 { session.answerJoinRequest(false) } }
-        )) {
-            Button("拒绝", role: .cancel) { session.answerJoinRequest(false) }
-            Button("同意") { session.answerJoinRequest(true) }
-        } message: {
-            if let req = session.joinRequest {
-                Text("\(req.requesterName) 想加入你所在的房间（当前 \(req.size)/\(req.max) 人）")
-            }
+    }
+
+    // MARK: 离开页面
+
+    /// 返回上一页时把账号从大厅撤掉。
+    /// 延迟 0.7 秒是为了区分"真的离开了"和"只是被别的东西暂时盖住了一下"。
+    private func scheduleLeave() {
+        guard !showChat else { return }
+        pendingLeave = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            guard self.pendingLeave else { return }
+            self.pendingLeave = false
+            self.session.leave()
         }
     }
 }

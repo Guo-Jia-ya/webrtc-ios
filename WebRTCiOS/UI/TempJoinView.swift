@@ -2,6 +2,11 @@
 //  TempJoinView.swift
 //  加入别人开的临时服务器（别人在桌面端点「临时服务器」，或者用 iPhone 当主机）
 //
+//  和 MainServerView 一样，用"一层 ZStack + 三层"的结构：
+//    0 层：填写页 或 大厅名单
+//    1 层：通话页
+//    2 层：来电 / 加入申请卡片（盖在房间界面之上，不影响通话）
+//
 
 import SwiftUI
 
@@ -17,35 +22,29 @@ struct TempJoinView: View {
 
     private enum Field { case host, name }
 
+    private var inCall: Bool { session.call != nil }
+
     var body: some View {
-        Group {
-            if session.phase == .idle {
-                joinForm
-            } else {
-                lobby
+        ZStack {
+            content
+
+            if let call = session.call {
+                CallView(call: call) { session.hangUp() }
+                    .zIndex(1)
             }
+
+            prompts
         }
         .navigationTitle("临时服务器")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(inCall)
+        .toolbar(inCall ? .hidden : .visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if let chat = session.chat {
-                    Button {
+                    ChatToolbarButton(chat: chat) {
                         chat.markRead()
                         showChat = true
-                    } label: {
-                        Image(systemName: "bubble.left.and.bubble.right")
-                            .overlay(alignment: .topTrailing) {
-                                if chat.unread > 0 {
-                                    Text("\(min(chat.unread, 99))")
-                                        .font(.system(size: 9, weight: .bold))
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
-                                        .background(Color.red, in: Capsule())
-                                        .offset(x: 8, y: -6)
-                                }
-                            }
                     }
                 }
             }
@@ -55,39 +54,44 @@ struct TempJoinView: View {
                 ChatSheet(chat: chat)
             }
         }
-        .alert("来电", isPresented: Binding(
-            get: { session.incoming != nil },
-            set: { if !$0 { session.answerIncoming(false) } }
-        )) {
-            Button("拒绝", role: .cancel) { session.answerIncoming(false) }
-            Button("接听") { session.answerIncoming(true) }
-        } message: {
-            Text("\(session.incoming?.fromName ?? "有人") 想和你通话")
-        }
-        .fullScreenCover(isPresented: Binding(
-            get: { session.call != nil },
-            set: { _ in }
-        )) {
-            if let call = session.call {
-                CallView(call: call) { session.hangUp() }
-            }
-        }
         .onAppear {
             if draftName.isEmpty { draftName = nickname }
             pendingLeave = false
         }
-        .onDisappear {
-            // 侧滑返回 / 点返回箭头时也得把人从大厅名单里撤掉。
-            // 全屏通话页盖上来时某些系统版本也会触发 onDisappear，所以：
-            //   ① 只在"在大厅里"时才考虑退出；
-            //   ② 延迟 0.7 秒再确认，期间又 onAppear 了说明只是被盖住。
-            guard session.phase == .inLobby else { return }
-            pendingLeave = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-                guard self.pendingLeave else { return }
-                self.pendingLeave = false
-                self.session.leave()
-            }
+        .onDisappear { scheduleLeave() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if session.phase == .idle {
+            joinForm
+        } else {
+            lobby
+        }
+    }
+
+    @ViewBuilder
+    private var prompts: some View {
+        if let inc = session.incoming {
+            PromptCard(title: "来电",
+                       message: "\(inc.fromName) 想和你通话",
+                       systemImage: "phone.arrow.down.left",
+                       primaryTitle: "接听",
+                       secondaryTitle: "拒绝",
+                       accent: .green,
+                       onPrimary: { session.answerIncoming(true) },
+                       onSecondary: { session.answerIncoming(false) })
+                .zIndex(2)
+        } else if let req = session.joinRequest {
+            PromptCard(title: "加入申请",
+                       message: "\(req.requesterName) 想加入当前通话（\(req.size)/\(req.max) 人）",
+                       systemImage: "person.badge.plus",
+                       primaryTitle: "同意",
+                       secondaryTitle: "拒绝",
+                       accent: .orange,
+                       onPrimary: { session.answerJoinRequest(true) },
+                       onSecondary: { session.answerJoinRequest(false) })
+                .zIndex(2)
         }
     }
 
@@ -172,16 +176,17 @@ struct TempJoinView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .alert("加入申请", isPresented: Binding(
-            get: { session.joinRequest != nil },
-            set: { if !$0 { session.answerJoinRequest(false) } }
-        )) {
-            Button("拒绝", role: .cancel) { session.answerJoinRequest(false) }
-            Button("同意") { session.answerJoinRequest(true) }
-        } message: {
-            if let req = session.joinRequest {
-                Text("\(req.requesterName) 想加入你所在的房间（当前 \(req.size)/\(req.max) 人）")
-            }
+    }
+
+    /// 侧滑返回 / 点返回箭头时也得把人从大厅名单里撤掉。
+    /// 延迟 0.7 秒再确认，期间又 onAppear 了说明只是被暂时盖住。
+    private func scheduleLeave() {
+        guard !showChat else { return }
+        pendingLeave = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            guard self.pendingLeave else { return }
+            self.pendingLeave = false
+            self.session.leave()
         }
     }
 }

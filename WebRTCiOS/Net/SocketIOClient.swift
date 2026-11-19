@@ -37,10 +37,18 @@ final class SocketIOClient {
     private var queued: [String] = []          // 未连上时暂存的报文
     private var closedByUser = false
     private var reconnectAttempt = 0
-    private let maxReconnect = 5
+    /// 重连次数上限。
+    /// 手机切后台、锁屏、Wi-Fi 抖动都会断好几秒，5 次（≈20 秒）不够用，
+    /// 断一次就永久掉线，回来只能退出重进。给到 30 次、单次最长 8 秒，
+    /// 大约能覆盖 4 分钟的网络中断。
+    private let maxReconnect = 30
 
     private(set) var socketId: String?
     private(set) var isConnected = false
+    /// 这是第几次连上（1 = 首次）。>1 就说明是重连：
+    /// 重连后 socket.id 已经变了，服务端眼里我是一个全新的人，
+    /// 大厅要重新 lobby-join、正在通话的要重新 mesh-join，否则对方名单/房间都会少人。
+    private(set) var connectCount = 0
 
     /// 连上（含重连成功）时回调，参数是 socket.id。重连后要重新 join 大厅。
     var onConnect: ((String?) -> Void)?
@@ -148,6 +156,7 @@ final class SocketIOClient {
             let pending = queued
             queued.removeAll()
             lock.unlock()
+            connectCount += 1
 
             // 先把握手期间攒下的事件按原顺序补发（比如 lobby-join）
             for packet in pending { rawSend(packet) }
@@ -245,7 +254,7 @@ final class SocketIOClient {
         lock.unlock()
 
         guard attempt < maxReconnect else { return }
-        let delay = min(Double(attempt + 1) * 1.5, 6.0)
+        let delay = min(Double(attempt + 1) * 1.5, 8.0)
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, !self.closedByUser else { return }
             self.openSocket()

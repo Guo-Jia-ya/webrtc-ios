@@ -33,6 +33,8 @@ final class MeshCall: ObservableObject {
     /// 否则人会从大厅里一起消失。
     private let ownsSocket: Bool
     private var started = false
+    /// 服务端回过 joined 没有（重连后用来判断要不要补发 mesh-join）
+    private var joinedAck = false
 
     init(socket: SocketIOClient, roomId: String, name: String, ownsSocket: Bool) {
         self.socket = socket
@@ -80,6 +82,7 @@ final class MeshCall: ObservableObject {
 
     private func bindSocket() {
         socket.on("joined") { [weak self] _ in
+            self?.joinedAck = true
             self?.status = "已进入房间"
         }
 
@@ -158,6 +161,43 @@ final class MeshCall: ObservableObject {
 
     // MARK: 生命周期
 
+    /// socket 重连之后重新入房。
+    ///
+    /// 重连会换一个新的 socket.id，服务端眼里我已经是一个新人：
+    /// 房间名额没了、对端也把我那条连接清掉了。
+    /// 所以这里只拆掉所有对端连接（**保留本地采集**，否则重进房间就是黑屏），
+    /// 然后按新人身份重新 mesh-join —— 按"谁发 offer"的规则，
+    /// 重新入房的我是新人，只等，由房里已有的人向我发起。
+    func recover() {
+        guard started else { return }
+        engine.resetConnections()
+        remoteTracks.removeAll()
+        memberCount = 1
+        joinedAck = false
+        status = "连接已恢复，正在重新进入房间…"
+        // rejoin: true 告诉服务端"我是断线回来的"：
+        // 房间还在 → 把我加回去并通知其他人；房间已经被回收 → 回 room-missing，
+        // 客户端老老实实结束通话，而不是凭空造一个只有自己的空房间。
+        sendJoin(rejoin: true)
+
+        // 万一这条 mesh-join 也丢了（重连后前几帧最容易丢），补发一次
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            guard let self, self.started, !self.joinedAck else { return }
+            self.status = "正在重新进入房间…"
+            self.sendJoin(rejoin: true)
+        }
+    }
+
+    private func sendJoin(rejoin: Bool = false) {
+        var payload: [String: Any] = [
+            "roomId": roomId,
+            "owner": socket.socketId ?? "",
+            "name": name
+        ]
+        if rejoin { payload["rejoin"] = true }
+        socket.emit("mesh-join", payload)
+    }
+
     /// 必须等本地媒体准备好再 join，否则发出去的 offer 里没有音视频轨道
     func start() async {
         let perm = await WebRTCEngine.requestPermissions()
@@ -176,11 +216,7 @@ final class MeshCall: ObservableObject {
         localTrack = engine.localVideoTrack
         guard !started else { return }
         started = true
-        socket.emit("mesh-join", [
-            "roomId": roomId,
-            "owner": socket.socketId ?? "",
-            "name": name
-        ])
+        sendJoin()
     }
 
     func toggleMic() {

@@ -14,11 +14,25 @@ struct ChatSheet: View {
 
     @StateObject private var recorder = VoiceRecorder()
     @State private var draft = ""
-    @State private var showPicker = false
-    @State private var preview: PreviewItem?
+    /// 文件选择 / 附件预览共用一个模态槽位。
+    /// 之前是 .sheet(isPresented:) + .sheet(item:) 挂在同一个视图上，
+    /// SwiftUI 只会保住其中一个，另一个点了没反应。
+    @State private var modal: Modal?
     @State private var player: AVAudioPlayer?
     @State private var playingId: String?
     @State private var loadingId: String?
+
+    enum Modal: Identifiable {
+        case picker
+        case share(URL)
+
+        var id: String {
+            switch self {
+            case .picker: return "picker"
+            case .share(let url): return url.absoluteString
+            }
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -42,13 +56,15 @@ struct ChatSheet: View {
             recorder.cancel()
             player?.stop()
         }
-        .sheet(isPresented: $showPicker) {
-            DocumentPicker { url in
-                Task { await chat.sendFile(localURL: url) }
+        .sheet(item: $modal) { item in
+            switch item {
+            case .picker:
+                DocumentPicker { url in
+                    Task { await chat.sendFile(localURL: url) }
+                }
+            case .share(let url):
+                ShareSheet(items: [url])
             }
-        }
-        .sheet(item: $preview) { item in
-            ShareSheet(items: [item.url])
         }
     }
 
@@ -223,7 +239,7 @@ struct ChatSheet: View {
                         .lineLimit(1...4)
                         .textFieldStyle(.roundedBorder)
 
-                    Button { showPicker = true } label: {
+                    Button { modal = .picker } label: {
                         Image(systemName: "paperclip")
                             .font(.system(size: 18))
                             .frame(width: 34, height: 34)
@@ -307,17 +323,12 @@ struct ChatSheet: View {
         Task {
             defer { loadingId = nil }
             guard let local = await chat.download(file) else { return }
-            preview = PreviewItem(url: local)
+            modal = .share(local)
         }
     }
 }
 
 // MARK: - 附件预览（能"存储到文件"、用别的 App 打开）
-
-struct PreviewItem: Identifiable {
-    let id = UUID()
-    let url: URL
-}
 
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]

@@ -17,7 +17,64 @@ struct HostView: View {
     @State private var hostCall: HostRoomCall?
 
     var body: some View {
+        ZStack {
+            form
+
+            // 通话页直接盖在这一页上（和两个大厅一致），不再用 fullScreenCover：
+            // 这一页同时还有 .sheet（网页预览）和报错提示，多个模态呈现叠在一起时
+            // SwiftUI 只会保住其中一个，实测会出现"进不了房间"或"预览打不开"。
+            if let call = hostCall {
+                HostCallView(call: call) { endCall() }
+                    .zIndex(1)
+            }
+        }
+        .navigationTitle("创建临时服务器")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(hostCall != nil)
+        .toolbar(hostCall != nil ? .hidden : .visible, for: .navigationBar)
+        .sheet(isPresented: $showPreview) {
+            NavigationStack {
+                WebPreview(url: URL(string: "https://127.0.0.1:\(server.port)/") ?? URL(string: "https://127.0.0.1:8080/")!)
+                    .ignoresSafeArea(edges: .bottom)
+                    .navigationTitle("本机预览")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("关闭") { showPreview = false }
+                        }
+                    }
+            }
+        }
+        .onDisappear {
+            // 通话中时不能停服务器，否则通话当场断掉
+            guard hostCall == nil else { return }
+            // 离开这个页面就别占着端口了
+            server.stop()
+        }
+    }
+
+    private var form: some View {
         Form {
+            if let errorText {
+                Section {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(errorText)
+                            .font(.footnote)
+                            .foregroundStyle(.primary)
+                        Spacer(minLength: 0)
+                        Button {
+                            self.errorText = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
             Section {
                 HStack(spacing: 10) {
                     Image(systemName: server.running ? "dot.radiowaves.left.and.right" : "stop.circle")
@@ -142,44 +199,6 @@ struct HostView: View {
                 Text("注意")
             }
             .font(.caption)
-        }
-        .navigationTitle("创建临时服务器")
-        .navigationBarTitleDisplayMode(.inline)
-        .alert("出错了", isPresented: Binding(
-            get: { errorText != nil },
-            set: { if !$0 { errorText = nil } }
-        )) {
-            Button("好", role: .cancel) { errorText = nil }
-        } message: {
-            Text(errorText ?? "")
-        }
-        .sheet(isPresented: $showPreview) {
-            NavigationStack {
-                WebPreview(url: URL(string: "https://127.0.0.1:\(server.port)/") ?? URL(string: "https://127.0.0.1:8080/")!)
-                    .ignoresSafeArea(edges: .bottom)
-                    .navigationTitle("本机预览")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("关闭") { showPreview = false }
-                        }
-                    }
-            }
-        }
-        .fullScreenCover(isPresented: Binding(
-            get: { hostCall != nil },
-            set: { if !$0 { hostCall = nil } }
-        )) {
-            if let call = hostCall {
-                HostCallView(call: call) { endCall() }
-            }
-        }
-        .onDisappear {
-            // 通话中（全屏页盖上来）时不能停服务器，否则通话当场断掉；
-            // 有些系统版本在这种情况下也会触发 onDisappear。
-            guard hostCall == nil else { return }
-            // 离开这个页面就别占着端口了
-            server.stop()
         }
     }
 
