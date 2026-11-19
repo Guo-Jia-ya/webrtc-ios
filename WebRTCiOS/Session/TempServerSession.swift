@@ -173,6 +173,7 @@ final class TempServerSession: ObservableObject {
         socket?.emit("call-response", ["callId": inc.callId, "accept": accept])
         incoming = nil
         phase = accept ? .connecting : .inLobby
+        if accept { banner = "已接通，正在进入房间…" }
     }
 
     func answerJoinRequest(_ accept: Bool) {
@@ -257,6 +258,7 @@ final class TempServerSession: ObservableObject {
         call?.hangUp()
         call = nil
         // socket 留着——大厅还要用
+        banner = nil
         phase = .inLobby
     }
 

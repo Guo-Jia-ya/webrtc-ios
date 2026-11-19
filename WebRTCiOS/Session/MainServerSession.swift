@@ -273,6 +273,7 @@ final class MainServerSession: ObservableObject {
         }
 
         phase = .connecting
+        banner = "已接通，正在连接通话服务器…"
         videoSocket?.close()
 
         let vs = SocketIOClient(endpoint: media, tag: "main-mesh")
@@ -333,6 +334,7 @@ final class MainServerSession: ObservableObject {
         // 房间名额记在**主服务器那条连接**（3007）上，所以必须在这条上挂断，
         // 否则名单里我会一直显示"通话中"，别人也永远叫不动我。
         socket?.emit("hang-up")
+        banner = nil
         phase = .inLobby
     }
 
